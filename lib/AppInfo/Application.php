@@ -83,6 +83,7 @@ use OCA\Talk\Federation\Proxy\TalkV1\Notifier\ParticipantModifiedListener as Tal
 use OCA\Talk\Federation\Proxy\TalkV1\Notifier\RoomModifiedListener as TalkV1RoomModifiedListener;
 use OCA\Talk\Files\Listener as FilesListener;
 use OCA\Talk\Files\TemplateLoader as FilesTemplateLoader;
+use OCA\Talk\FloatingCall\FloatingCallPluginLoader;
 use OCA\Talk\Flow\RegisterOperationsListener;
 use OCA\Talk\Listener\AddMissingIndicesListener;
 use OCA\Talk\Listener\BeforeUserLoggedOutListener;
@@ -193,6 +194,7 @@ class Application extends App implements IBootstrap {
 		$context->registerEventListener(AddFeaturePolicyEvent::class, FeaturePolicyListener::class);
 		$context->registerEventListener(\OCP\AppFramework\Http\Events\BeforeTemplateRenderedEvent::class, UnifiedSearchCSSLoader::class);
 		$context->registerEventListener(\OCP\AppFramework\Http\Events\BeforeTemplateRenderedEvent::class, DeckPluginLoader::class);
+		$context->registerEventListener(\OCP\AppFramework\Http\Events\BeforeTemplateRenderedEvent::class, FloatingCallPluginLoader::class);
 		$context->registerEventListener(\OCP\AppFramework\Http\Events\BeforeTemplateRenderedEvent::class, MapsPluginLoader::class);
 		$context->registerEventListener(\OCP\AppFramework\Http\Events\BeforeTemplateRenderedEvent::class, UnifiedSearchFilterPlugin::class);
 		$context->registerEventListener(RegisterOperationsEvent::class, RegisterOperationsListener::class);
