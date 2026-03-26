@@ -132,6 +132,7 @@ class Capabilities implements IPublicCapability {
 		'scheduled-messages',
 		'conversation-presets',
 		'private-reply',
+		'conversation-categories',
 	];
 
 	public const CONDITIONAL_FEATURES = [
@@ -164,6 +165,7 @@ class Capabilities implements IPublicCapability {
 		'sensitive-conversations',
 		'scheduled-messages',
 		'conversation-presets',
+		'conversation-categories',
 	];
 
 	public const LOCAL_CONFIGS = [
