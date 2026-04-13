@@ -475,8 +475,8 @@ class PollController extends AEnvironmentAwareOCSController {
 	 *
 	 * @param int $pollId ID of the poll
 	 * @psalm-param non-negative-int $pollId
-	 * @param 'xlsx'|'ods' $format Export format
-	 * @return DataDownloadResponse<Http::STATUS_OK, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'|'application/vnd.oasis.opendocument.spreadsheet', array{}>|DataResponse<Http::STATUS_FORBIDDEN|Http::STATUS_NOT_FOUND, array{error: string}, array{}>
+	 * @param 'xlsx'|'ods'|'csv'|'tsv' $format Export format
+	 * @return DataDownloadResponse<Http::STATUS_OK, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'|'application/vnd.oasis.opendocument.spreadsheet'|'text/csv'|'text/tab-separated-values', array{}>|DataResponse<Http::STATUS_FORBIDDEN|Http::STATUS_NOT_FOUND, array{error: string}, array{}>
 	 *
 	 * 200: Poll exported successfully
 	 * 403: Missing permissions to export poll
@@ -490,7 +490,7 @@ class PollController extends AEnvironmentAwareOCSController {
 		'apiVersion' => '(v1)',
 		'token' => '[a-z0-9]{4,30}',
 		'pollId' => '\d+',
-		'format' => '(xlsx|ods)',
+		'format' => '(xlsx|ods|csv|tsv)',
 	])]
 	public function exportPoll(int $pollId, string $format): DataDownloadResponse|DataResponse {
 		try {
@@ -526,9 +526,12 @@ class PollController extends AEnvironmentAwareOCSController {
 		$date = $this->timeFactory->getDateTime()->format('Y-m-d');
 		$fileName = $cleanedRoomName . ' - Poll - ' . $cleanedQuestion . ' - ' . $date . '.' . $format;
 
-		$mimeType = $format === 'ods'
-			? 'application/vnd.oasis.opendocument.spreadsheet'
-			: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+		$mimeType = match ($format) {
+			'ods' => 'application/vnd.oasis.opendocument.spreadsheet',
+			'csv' => 'text/csv',
+			'tsv' => 'text/tab-separated-values',
+			default => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+		};
 
 		return new DataDownloadResponse($content, $fileName, $mimeType);
 	}

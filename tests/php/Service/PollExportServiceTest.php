@@ -80,11 +80,13 @@ class PollExportServiceTest extends TestCase {
 		return [
 			['xlsx'],
 			['ods'],
+			['csv'],
+			['tsv'],
 		];
 	}
 
 	#[DataProvider('dataFormats')]
-	public function testExportProducesValidZipArchive(string $format): void {
+	public function testExportProducesNonEmptyContent(string $format): void {
 		$poll = $this->createPoll();
 		$votes = $this->createVotes();
 
@@ -92,7 +94,13 @@ class PollExportServiceTest extends TestCase {
 
 		$this->assertNotEmpty($content);
 
-		// Write to temp file and verify it's a valid ZIP
+		if ($format === 'csv' || $format === 'tsv') {
+			// Plain text formats: verify they contain expected content
+			$this->assertStringContainsString('What is the best color?', $content);
+			return;
+		}
+
+		// ZIP-based formats: verify it's a valid ZIP
 		$tempFile = tempnam(sys_get_temp_dir(), 'poll_test_');
 		file_put_contents($tempFile, $content);
 
@@ -334,6 +342,34 @@ class PollExportServiceTest extends TestCase {
 		$this->assertStringContainsString('Closed', $sharedStrings);
 		$zip->close();
 		unlink($tempFile);
+	}
+
+	public function testCsvContainsPollData(): void {
+		$poll = $this->createPoll();
+		$votes = $this->createVotes();
+
+		$content = $this->service->exportToSpreadsheet($poll, $votes, 'csv');
+
+		$this->assertStringContainsString('What is the best color?', $content);
+		$this->assertStringContainsString('Red', $content);
+		$this->assertStringContainsString('Blue', $content);
+		$this->assertStringContainsString('Green', $content);
+		$this->assertStringContainsString('Question', $content);
+		$this->assertStringContainsString('Option', $content);
+		$this->assertStringContainsString('Votes', $content);
+		$this->assertStringContainsString('Percentage', $content);
+		$this->assertStringContainsString('User One', $content);
+		$this->assertStringContainsString('User Two', $content);
+		$this->assertStringContainsString('User Three', $content);
+	}
+
+	public function testTsvUsesTabDelimiter(): void {
+		$poll = $this->createPoll();
+
+		$content = $this->service->exportToSpreadsheet($poll, [], 'tsv');
+
+		$this->assertStringContainsString("Question\t", $content);
+		$this->assertStringContainsString("Option\tVotes\tPercentage", $content);
 	}
 
 	public function testEmptyVotesGeneratesValidFile(): void {

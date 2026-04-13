@@ -127,9 +127,9 @@ async function deletePollDraft(token: string, pollId: string): deletePollDraftRe
  *
  * @param token The conversation token
  * @param pollId Id of the poll
- * @param format The export format ('xlsx' or 'ods')
+ * @param format The export format
  */
-async function exportPoll(token: string, pollId: number, format: 'xlsx' | 'ods'): Promise<void> {
+async function exportPoll(token: string, pollId: number, format: 'xlsx' | 'ods' | 'csv' | 'tsv'): Promise<void> {
 	const response = await axios.get(
 		generateOcsUrl('apps/spreed/api/v1/poll/{token}/{pollId}/export/{format}', { token, pollId, format }),
 		{ responseType: 'blob' },

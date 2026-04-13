@@ -10,7 +10,7 @@
 		:labelId="dialogHeaderId"
 		@close="dismissModal">
 		<div v-if="poll" class="poll-modal">
-			<div ref="pollResultsRef" class="poll-modal__capture-area">
+			<div class="poll-modal__capture-area">
 				<div class="poll-modal__header-wrapper">
 					<div class="poll-modal__status">
 						<IconChartBoxOutline :size="20" />
@@ -120,45 +120,60 @@
 				</NcButton>
 			</div>
 			<div v-else-if="selfIsOwnerOrModerator" class="poll-modal__actions">
-				<NcActions forceMenu>
-					<NcActionButton v-if="supportPollDrafts && isModerator" @click="createPollDraft">
-						<template #icon>
-							<IconFileEditOutline :size="20" />
-						</template>
-						{{ t('spreed', 'Save as draft') }}
-					</NcActionButton>
-					<NcActionLink v-if="supportPollDrafts" :href="exportPollURI" :download="exportPollFileName">
-						<template #icon>
-							<NcIconSvgWrapper :svg="IconFileDownload" :size="20" />
-						</template>
-						{{ t('spreed', 'Export draft to file') }}
-					</NcActionLink>
-					<template v-if="isPollClosed">
+				<NcActions forceMenu @close="actionsSubmenu = null">
+					<template v-if="actionsSubmenu === null">
+						<NcActionButton v-if="supportPollDrafts && isModerator" @click="createPollDraft">
+							<template #icon>
+								<IconFileEditOutline :size="20" />
+							</template>
+							{{ t('spreed', 'Save as draft') }}
+						</NcActionButton>
+						<NcActionLink v-if="supportPollDrafts" :href="exportPollURI" :download="exportPollFileName">
+							<template #icon>
+								<NcIconSvgWrapper :svg="IconFileDownload" :size="20" />
+							</template>
+							{{ t('spreed', 'Export draft to file') }}
+						</NcActionLink>
+						<NcActionButton v-if="isPollClosed"
+							isMenu
+							@click.stop="actionsSubmenu = 'download'">
+							<template #icon>
+								<NcIconSvgWrapper :svg="IconFileDownload" :size="20" />
+							</template>
+							{{ t('spreed', 'Download') }}
+						</NcActionButton>
+					</template>
+					<template v-else-if="actionsSubmenu === 'download'">
+						<NcActionButton @click.stop="actionsSubmenu = null">
+							<template #icon>
+								<IconArrowLeft :size="20" />
+							</template>
+							{{ t('spreed', 'Back') }}
+						</NcActionButton>
 						<NcActionSeparator />
-						<NcActionCaption :name="t('spreed', 'Download results as')" />
-						<NcActionButton @click="downloadAsImage('png')">
-							<template #icon>
-								<NcIconSvgWrapper :svg="IconFileDownload" :size="20" />
-							</template>
-							{{ t('spreed', 'PNG') }}
-						</NcActionButton>
-						<NcActionButton @click="downloadAsImage('svg')">
-							<template #icon>
-								<NcIconSvgWrapper :svg="IconFileDownload" :size="20" />
-							</template>
-							{{ t('spreed', 'SVG') }}
-						</NcActionButton>
-						<NcActionButton @click="downloadAsSpreadsheet('xlsx')">
+						<NcActionButton closeAfterClick @click="downloadAsSpreadsheet('xlsx')">
 							<template #icon>
 								<NcIconSvgWrapper :svg="IconFileDownload" :size="20" />
 							</template>
 							{{ t('spreed', 'XLSX') }}
 						</NcActionButton>
-						<NcActionButton @click="downloadAsSpreadsheet('ods')">
+						<NcActionButton closeAfterClick @click="downloadAsSpreadsheet('ods')">
 							<template #icon>
 								<NcIconSvgWrapper :svg="IconFileDownload" :size="20" />
 							</template>
 							{{ t('spreed', 'ODS') }}
+						</NcActionButton>
+						<NcActionButton closeAfterClick @click="downloadAsSpreadsheet('csv')">
+							<template #icon>
+								<NcIconSvgWrapper :svg="IconFileDownload" :size="20" />
+							</template>
+							{{ t('spreed', 'CSV') }}
+						</NcActionButton>
+						<NcActionButton closeAfterClick @click="downloadAsSpreadsheet('tsv')">
+							<template #icon>
+								<NcIconSvgWrapper :svg="IconFileDownload" :size="20" />
+							</template>
+							{{ t('spreed', 'TSV') }}
 						</NcActionButton>
 					</template>
 				</NcActions>
@@ -172,7 +187,6 @@
 import { n, t } from '@nextcloud/l10n'
 import { computed, ref, useId } from 'vue'
 import NcActionButton from '@nextcloud/vue/components/NcActionButton'
-import NcActionCaption from '@nextcloud/vue/components/NcActionCaption'
 import NcActionLink from '@nextcloud/vue/components/NcActionLink'
 import NcActionSeparator from '@nextcloud/vue/components/NcActionSeparator'
 import NcActions from '@nextcloud/vue/components/NcActions'
@@ -185,6 +199,7 @@ import NcModal from '@nextcloud/vue/components/NcModal'
 import NcProgressBar from '@nextcloud/vue/components/NcProgressBar'
 import IconChartBoxOutline from 'vue-material-design-icons/ChartBoxOutline.vue'
 import IconCheck from 'vue-material-design-icons/Check.vue'
+import IconArrowLeft from 'vue-material-design-icons/ArrowLeft.vue'
 import IconFileEditOutline from 'vue-material-design-icons/FileEditOutline.vue'
 import IconFileLockOutline from 'vue-material-design-icons/FileLockOutline.vue'
 import PollVotersDetails from './PollVotersDetails.vue'
@@ -197,7 +212,7 @@ import { useActorStore } from '../../stores/actor.ts'
 import { usePollsStore } from '../../stores/polls.ts'
 import { calculateVotePercentage } from '../../utils/calculateVotePercentage.ts'
 import { exportPoll } from '../../services/pollService.ts'
-import { convertToJSONDataURI, downloadDataURL } from '../../utils/fileDownload.ts'
+import { convertToJSONDataURI } from '../../utils/fileDownload.ts'
 
 export default {
 	name: 'PollViewer',
@@ -205,7 +220,6 @@ export default {
 	components: {
 		NcActions,
 		NcActionButton,
-		NcActionCaption,
 		NcActionLink,
 		NcActionSeparator,
 		NcCheckboxRadioSwitch,
@@ -217,6 +231,7 @@ export default {
 		NcProgressBar,
 		PollVotersDetails,
 		// icons
+		IconArrowLeft,
 		IconCheck,
 		IconFileLockOutline,
 		IconFileEditOutline,
@@ -227,6 +242,7 @@ export default {
 		const voteToSubmit = ref([])
 		const modalPage = ref('')
 		const loading = ref(false)
+		const actionsSubmenu = ref(null)
 		const dialogHeaderId = `guest-welcome-header-${useId()}`
 
 		const pollsStore = usePollsStore()
@@ -254,6 +270,7 @@ export default {
 			voteToSubmit,
 			modalPage,
 			loading,
+			actionsSubmenu,
 			dialogHeaderId,
 			name,
 			id,
@@ -473,37 +490,6 @@ export default {
 				token: this.token,
 				form: this.poll,
 			})
-		},
-
-		async downloadAsImage(format) {
-			const node = this.$refs.pollResultsRef
-			if (!node) {
-				return
-			}
-			const filename = this.exportPollFileName
-			try {
-				// Use theme background color from the actual node being captured
-				const backgroundColor = getComputedStyle(node)
-					.getPropertyValue('background-color') || '#ffffff'
-
-				// Avoid webfont stylesheet traversal: some global stylesheet hrefs are relative and break URL parsing.
-				const options = {
-					skipFonts: true,
-					fontEmbedCSS: '/* poll export: fonts intentionally not embedded */',
-					backgroundColor,
-				}
-				if (format === 'png') {
-					const { toPng } = await import('html-to-image')
-					const dataUrl = await toPng(node, { ...options, pixelRatio: 2 })
-					downloadDataURL(dataUrl, filename + '.png')
-				} else {
-					const { toSvg } = await import('html-to-image')
-					const dataUrl = await toSvg(node, options)
-					downloadDataURL(dataUrl, filename + '.svg')
-				}
-			} catch (error) {
-				console.error('Error downloading poll as image:', error)
-			}
 		},
 
 		async downloadAsSpreadsheet(format) {

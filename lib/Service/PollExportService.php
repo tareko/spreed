@@ -16,18 +16,20 @@ use ZipArchive;
 class PollExportService {
 
 	/**
-	 * Generate a spreadsheet file (XLSX or ODS) from poll data.
+	 * Generate a spreadsheet file (XLSX, ODS, CSV, or TSV) from poll data.
 	 *
 	 * @param Poll $poll The poll to export
 	 * @param list<Vote> $votes Detailed votes (empty for hidden polls)
-	 * @param 'xlsx'|'ods' $format The output format
+	 * @param 'xlsx'|'ods'|'csv'|'tsv' $format The output format
 	 * @return string The file content
 	 */
 	public function exportToSpreadsheet(Poll $poll, array $votes, string $format): string {
-		if ($format === 'ods') {
-			return $this->generateOds($poll, $votes);
-		}
-		return $this->generateXlsx($poll, $votes);
+		return match ($format) {
+			'ods' => $this->generateOds($poll, $votes),
+			'csv' => $this->generateDelimited($poll, $votes, ','),
+			'tsv' => $this->generateDelimited($poll, $votes, "\t"),
+			default => $this->generateXlsx($poll, $votes),
+		};
 	}
 
 	private function generateXlsx(Poll $poll, array $votes): string {
@@ -380,6 +382,47 @@ class PollExportService {
 
 		$content = file_get_contents($tempFile);
 		unlink($tempFile);
+
+		return $content;
+	}
+
+	private function generateDelimited(Poll $poll, array $votes, string $delimiter): string {
+		$options = json_decode($poll->getOptions(), true, 512, JSON_THROW_ON_ERROR);
+		$voteData = json_decode($poll->getVotes(), true, 512, JSON_THROW_ON_ERROR);
+		$numVoters = $poll->getNumVoters();
+		$statusStr = $poll->getStatus() === Poll::STATUS_CLOSED ? 'Closed' : 'Open';
+		$hasDetails = !empty($votes);
+
+		$output = fopen('php://memory', 'r+');
+
+		// Summary section
+		fputcsv($output, ['Question', $poll->getQuestion()], $delimiter);
+		fputcsv($output, ['Total voters', (string)$numVoters], $delimiter);
+		fputcsv($output, ['Status', $statusStr], $delimiter);
+		fputcsv($output, [], $delimiter);
+
+		// Options table
+		fputcsv($output, ['Option', 'Votes', 'Percentage'], $delimiter);
+		foreach ($options as $index => $option) {
+			$count = $voteData[$index] ?? 0;
+			$percentage = $numVoters > 0 ? round(($count / $numVoters) * 100, 1) : 0;
+			fputcsv($output, [$option, (string)$count, (string)$percentage], $delimiter);
+		}
+
+		// Voter details section
+		if ($hasDetails) {
+			fputcsv($output, [], $delimiter);
+			fputcsv($output, ['Voter', 'Option'], $delimiter);
+			foreach ($votes as $vote) {
+				$voterName = $vote->getDisplayName() ?? '';
+				$optionText = $options[$vote->getOptionId()] ?? '';
+				fputcsv($output, [$voterName, $optionText], $delimiter);
+			}
+		}
+
+		rewind($output);
+		$content = stream_get_contents($output);
+		fclose($output);
 
 		return $content;
 	}

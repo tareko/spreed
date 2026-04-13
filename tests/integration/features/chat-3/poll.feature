@@ -1020,9 +1020,11 @@ Feature: chat-3/poll
       | status     | closed |
       | votedSelf  | [0] |
       | details    | [{"actorType":"users","actorId":"participant1","actorDisplayName":"participant1-displayname","optionId":0},{"actorType":"users","actorId":"participant2","actorDisplayName":"participant2-displayname","optionId":1}] |
-    # Moderator (participant1) can export as xlsx and ods
+    # Moderator (participant1) can export as xlsx, ods, csv, and tsv
     Then user "participant1" exports poll "What is the question?" from room "room" as "xlsx" with 200
     Then user "participant1" exports poll "What is the question?" from room "room" as "ods" with 200
+    Then user "participant1" exports poll "What is the question?" from room "room" as "csv" with 200
+    Then user "participant1" exports poll "What is the question?" from room "room" as "tsv" with 200
     # Non-moderator non-owner (participant2) cannot export
     Then user "participant2" exports poll "What is the question?" from room "room" as "xlsx" with 403
 
