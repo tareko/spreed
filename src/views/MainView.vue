@@ -92,12 +92,12 @@ function handleDirectCall(routeToken: string) {
 	// Verify that conversation is joined before trying to join the call
 	const currentJoinedToken = SessionStorage.getItem('joined_conversation')
 	if (currentJoinedToken === routeToken) {
-		joinCall(routeToken)
+		joinCall(routeToken, { directCall: true })
 	} else {
 		EventBus.once('joined-conversation', async ({ token }) => {
 			if (token === routeToken) {
 				// If the correct conversation joined, proceed
-				joinCall(routeToken)
+				joinCall(routeToken, { directCall: true })
 			}
 		})
 	}

@@ -13,6 +13,7 @@ import { ATTENDEE, CALL, CONVERSATION, PARTICIPANT } from '../constants.ts'
 import { callSIPDialOut } from '../services/callsService.ts'
 import { getTalkConfig } from '../services/CapabilitiesManager.ts'
 import { useActorStore } from '../stores/actor.ts'
+import { useSettingsStore } from '../stores/settings.ts'
 import { isAxiosErrorResponse } from '../types/guards.ts'
 
 /**
@@ -20,6 +21,7 @@ import { isAxiosErrorResponse } from '../types/guards.ts'
  */
 export function useJoinCall() {
 	const actorStore = useActorStore()
+	const settingsStore = useSettingsStore()
 	const vuexStore = useStore()
 
 	/**
@@ -67,11 +69,13 @@ export function useJoinCall() {
 	 * @param options.silent - whether to join the call silently (no notifications)
 	 * @param options.recordingConsent - whether to join the call with recording consent
 	 * @param options.shouldStartRecording - whether to start the recording together with the call (requires recording backend)
+	 * @param options.directCall - whether to join call with video off
 	 */
 	async function joinCall(token: string, {
 		silent = false,
 		recordingConsent = false,
 		shouldStartRecording = false,
+		directCall = false,
 	} = {}) {
 		const conversation = vuexStore.getters.conversation(token)
 		if (!actorStore.participantIdentifier.sessionId || conversation.attendeeId !== actorStore.participantIdentifier.attendeeId) {
@@ -95,6 +99,19 @@ export function useJoinCall() {
 		// Close navigation when joining the call
 		emit('toggle-navigation', { open: false })
 
+		const options: Partial<Record<'audioOn' | 'videoOn', boolean>> = {}
+		if (settingsStore.startWithoutMedia) {
+			// Option: 'Turn camera and microphone off by default'
+			options.audioOn = false
+			options.videoOn = false
+		} else if (!settingsStore.showMediaSettings) {
+			// Join calls with video off if device preview skipped
+			options.videoOn = false
+		} else if (directCall) {
+			// Join direct calls with video off
+			options.videoOn = false
+		}
+
 		console.debug('Joining call')
 		await vuexStore.dispatch('joinCall', {
 			token,
@@ -102,6 +119,7 @@ export function useJoinCall() {
 			flags,
 			silent,
 			recordingConsent,
+			options,
 		})
 
 		if (shouldStartRecording && getTalkConfig(token, 'call', 'recording')) {

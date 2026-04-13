@@ -36,7 +36,7 @@
 					v-if="!isGuest"
 					:modelValue="hideMediaSettings"
 					:label="t('spreed', 'Skip device preview before joining a call')"
-					:description="t('spreed', 'Always shown if recording consent is required')"
+					:description="t('spreed', 'Camera will be turned off when joining. Always shown if recording consent is required.')"
 					@update:modelValue="setHideMediaSettings" />
 				<NcFormBoxButton
 					:label="t('spreed', 'Microphone settings')"
