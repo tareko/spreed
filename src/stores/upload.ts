@@ -18,10 +18,13 @@ import { defineStore } from 'pinia'
 import { reactive, ref } from 'vue'
 import { useStore } from 'vuex'
 import { useTemporaryMessage } from '../composables/useTemporaryMessage.ts'
-import { MESSAGE, SHARED_ITEM } from '../constants.ts'
+import { CONVERSATION, MESSAGE, SHARED_ITEM } from '../constants.ts'
+import { getTalkConfig } from '../services/CapabilitiesManager.ts'
 import { getDavClient } from '../services/DavClient.ts'
 import { EventBus } from '../services/EventBus.ts'
 import {
+	postAttachment,
+	probeAttachmentFolder,
 	shareFile as shareFileApi,
 } from '../services/filesSharingServices.ts'
 import { isAxiosErrorResponse } from '../types/guards.ts'
@@ -40,6 +43,7 @@ import { useSettingsStore } from './settings.ts'
 type UploadsState = {
 	[uploadId: string]: {
 		token: string
+		draftFolderPath?: string | null
 		files: {
 			[index: string]: UploadFile
 		}
@@ -372,6 +376,26 @@ export const useUploadStore = defineStore('upload', () => {
 			EventBus.emit('scroll-chat-to-bottom', { smooth: true, force: true })
 		}
 
+		// For group and public rooms with the conversation-subfolders feature
+		// enabled, stage uploads inside the backend-provided Draft folder and
+		// post them via the dedicated attachment endpoint.  The probe call
+		// lazily creates the conversation subfolder hierarchy and the
+		// folder-level TYPE_ROOM share server-side.
+		const conversation = vuexStore.getters.conversation(token)
+		const useConversationFolder = conversation
+			&& [CONVERSATION.TYPE.GROUP, CONVERSATION.TYPE.PUBLIC].includes(conversation.type)
+			&& getTalkConfig(token, 'attachments', 'conversation-subfolders') === true
+		if (useConversationFolder) {
+			const fileNames = getInitialisedUploads(uploadId)
+				.map(([, uploadedFile]) => uploadedFile.file.newName || uploadedFile.file.name)
+			try {
+				const probe = await probeAttachmentFolder({ token, fileNames })
+				uploads[uploadId].draftFolderPath = probe.folder
+			} catch (error) {
+				console.error('Error while probing conversation attachment folder, falling back to flat upload: ', error)
+			}
+		}
+
 		await prepareUploadPaths({ token, uploadId })
 
 		await processUpload({ token, uploadId })
@@ -382,13 +406,37 @@ export const useUploadStore = defineStore('upload', () => {
 	}
 
 	/**
-	 * Prepare unique paths to upload for each file
+	 * Prepare unique paths to upload for each file.
+	 *
+	 * For Draft-folder uploads the backend handles rename-on-conflict when
+	 * {@link postAttachment} moves the file out of Draft, so we skip the
+	 * PROPFIND round-trip and assign a guaranteed-unique temp name
+	 * (`uploadId-index-originalName`) inside the Draft folder instead.  The
+	 * original file name is passed separately to `postAttachment` so the
+	 * backend can name the final file correctly (with ` (1)` / ` (2)`
+	 * suffixes if needed).
+	 *
+	 * For regular attachment-folder uploads the existing PROPFIND uniqueness
+	 * logic is kept unchanged.
 	 *
 	 * @param payload the wrapping object
 	 * @param payload.token The conversation token
 	 * @param payload.uploadId unique identifier
 	 */
 	async function prepareUploadPaths({ token, uploadId }: { token: string, uploadId: string }) {
+		const draftFolderPath = uploads[uploadId]?.draftFolderPath
+		if (draftFolderPath) {
+			// Assign a guaranteed-unique temp name; the backend resolves the
+			// final name and any conflicts when postAttachment is called.
+			for (const [index, uploadedFile] of getInitialisedUploads(uploadId)) {
+				const fileName = uploadedFile.file.newName || uploadedFile.file.name
+				const tempName = `${uploadId}-${index}-${fileName}`
+				markFileAsPendingUpload({ uploadId, index, sharePath: '/' + draftFolderPath + '/' + tempName })
+			}
+			return
+		}
+
+		// Regular attachment-folder upload: use PROPFIND to find unique paths.
 		const client = getDavClient()
 		const userRoot = '/files/' + actorStore.userId
 
@@ -398,7 +446,6 @@ export const useUploadStore = defineStore('upload', () => {
 		const performPropFind = async (uploadEntry: UploadEntry) => {
 			const [index, uploadedFile] = uploadEntry
 			const fileName = (uploadedFile.file.newName || uploadedFile.file.name)
-			// Candidate rest of the path
 			const path = settingsStore.attachmentFolder + '/' + fileName
 
 			try {
@@ -516,31 +563,49 @@ export const useUploadStore = defineStore('upload', () => {
 				options?.parent ? { replyTo: options.parent.id } : {},
 			))
 
-			await shareFile({ token, path: shareableFile.sharePath!, index, uploadId, id, referenceId, talkMetaData })
+			// Persist talkMetaData on the file so retryShareFiles can reuse it
+			uploads[uploadId].files[index].talkMetaData = talkMetaData
+
+			const fileName = shareableFile.file.newName || shareableFile.file.name
+			await performShare({ token, path: shareableFile.sharePath!, index, uploadId, id, referenceId, talkMetaData, fileName })
 		}
 	}
 
 	/**
-	 * Shares the files to the conversation
+	 * Share or post a single file to a conversation.
+	 *
+	 * When the upload has a draftFolderPath (conversation-subfolder flow) and
+	 * a fileName is provided, the file is posted via the Talk attachment
+	 * endpoint.  Otherwise it falls back to the classic files_sharing API.
 	 *
 	 * @param payload the wrapping object
 	 * @param payload.token The conversation token
-	 * @param payload.path The file path from the user's root directory
+	 * @param payload.path The file path (with leading slash for draft files,
+	 *        relative to user root for classic shares)
 	 * @param [payload.index] The index of uploaded file
 	 * @param [payload.uploadId] unique identifier
 	 * @param [payload.id] Id of temporary message
 	 * @param [payload.referenceId] A reference id to recognize the message later
 	 * @param [payload.talkMetaData] The metadata JSON-encoded object
+	 * @param [payload.fileName] Original file name — when present together
+	 *        with a stored draftFolderPath, the attachment endpoint is used
 	 */
-	async function shareFile({ token, path, index, uploadId, id, referenceId, talkMetaData }: { token: string, path: string, index: string, uploadId: string, id: number, referenceId: string, talkMetaData: string }) {
+	async function performShare({ token, path, index, uploadId, id, referenceId, talkMetaData, fileName }: { token: string, path: string, index?: string, uploadId?: string, id?: number, referenceId?: string, talkMetaData?: string, fileName?: string }) {
 		try {
-			if (uploadId) {
+			if (uploadId && index) {
 				markFileAsSharing({ uploadId, index })
 			}
 
-			await shareFileApi({ path, shareWith: token, referenceId, talkMetaData })
+			const draftFolderPath = uploadId ? uploads[uploadId]?.draftFolderPath : undefined
+			if (draftFolderPath && fileName) {
+				// Draft-folder flow: post via the Talk attachment endpoint
+				const filePath = path.replace(/^\//, '')
+				await postAttachment({ token, filePath, fileName, referenceId: referenceId!, talkMetaData: talkMetaData! })
+			} else {
+				await shareFileApi({ path, shareWith: token, referenceId, talkMetaData })
+			}
 
-			if (uploadId) {
+			if (uploadId && index) {
 				markFileAsShared({ uploadId, index })
 			}
 		} catch (error) {
@@ -558,6 +623,15 @@ export const useUploadStore = defineStore('upload', () => {
 				vuexStore.dispatch('markTemporaryMessageAsFailed', { token, id, uploadId, reason: 'failed-share' })
 			}
 		}
+	}
+
+	/**
+	 * Public wrapper — shares a file via the classic files_sharing API.
+	 * Used by external callers (NewMessage, NewFileDialog) that don't
+	 * participate in the upload-store lifecycle.
+	 */
+	async function shareFile(params: { token: string, path: string, index?: string, uploadId?: string, id?: number, referenceId?: string, talkMetaData?: string }) {
+		await performShare(params)
 	}
 
 	/**
@@ -580,6 +654,35 @@ export const useUploadStore = defineStore('upload', () => {
 		}
 
 		currentUploadId.value = uploadId
+	}
+
+	/**
+	 * Retry sharing files that failed at the share/post step.
+	 * The files are already uploaded; only the share API call is re-attempted.
+	 *
+	 * @param payload payload
+	 * @param payload.token the conversation token
+	 * @param payload.uploadId unique identifier
+	 */
+	async function retryShareFiles({ token, uploadId }: { token: string, uploadId: string }) {
+		if (!uploads[uploadId]) {
+			return
+		}
+
+		// Find files stuck in 'sharing' status (share was attempted but failed)
+		const failedShares = getUploadsArray(uploadId)
+			.filter(([, file]) => file.status === 'sharing')
+
+		for (const [index, shareableFile] of failedShares) {
+			// Reset status so markFileAsSharing (called inside performShare) can proceed
+			uploads[uploadId].files[index].status = 'successUpload'
+
+			const { id, referenceId } = shareableFile.temporaryMessage || {}
+			const talkMetaData = shareableFile.talkMetaData || '{}'
+			const fileName = shareableFile.file.newName || shareableFile.file.name
+
+			await performShare({ token, path: shareableFile.sharePath!, index, uploadId, id, referenceId, talkMetaData, fileName })
+		}
 	}
 
 	return {
@@ -614,5 +717,6 @@ export const useUploadStore = defineStore('upload', () => {
 		shareFiles,
 		shareFile,
 		retryUploadFiles,
+		retryShareFiles,
 	}
 })

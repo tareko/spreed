@@ -642,6 +642,7 @@ export type UploadFile = {
 	}
 	sharePath?: string
 	status?: string
+	talkMetaData?: string
 	temporaryMessage: ChatMessage
 	totalSize?: number
 }

@@ -6,7 +6,7 @@
 import axios from '@nextcloud/axios'
 import { generateOcsUrl } from '@nextcloud/router'
 import { afterEach, describe, expect, test, vi } from 'vitest'
-import { shareFile } from '../filesSharingServices.ts'
+import { postAttachment, probeAttachmentFolder, shareFile } from '../filesSharingServices.ts'
 
 vi.mock('@nextcloud/axios', () => ({
 	default: {
@@ -36,5 +36,85 @@ describe('filesSharingServices', () => {
 				referenceId: 'the-reference-id',
 			},
 		)
+	})
+
+	test('postAttachment calls the Talk chat attachment API endpoint', async () => {
+		axios.post.mockResolvedValue({ data: { ocs: { data: { renames: [{ 'test.txt': 'test.txt' }] } } } })
+
+		const renames = await postAttachment({
+			token: 'XXTOKENXX',
+			filePath: 'Talk/My Room-XXTOKENXX/Current User-current-user/upload-id1-0-test.txt',
+			fileName: 'test.txt',
+			referenceId: 'the-reference-id',
+			talkMetaData: '{"caption":"hello"}',
+		})
+
+		expect(axios.post).toHaveBeenCalledWith(
+			generateOcsUrl('apps/spreed/api/v1/chat/{token}/attachment', { token: 'XXTOKENXX' }),
+			{
+				filePath: 'Talk/My Room-XXTOKENXX/Current User-current-user/upload-id1-0-test.txt',
+				fileName: 'test.txt',
+				referenceId: 'the-reference-id',
+				talkMetaData: '{"caption":"hello"}',
+			},
+		)
+		expect(renames).toEqual([{ 'test.txt': 'test.txt' }])
+	})
+
+	test('postAttachment returns conflict-resolved renames when backend renames the file', async () => {
+		axios.post.mockResolvedValue({
+			data: { ocs: { data: { renames: [{ 'photo.jpg': 'photo (1).jpg' }] } } },
+		})
+
+		const renames = await postAttachment({
+			token: 'XXTOKENXX',
+			filePath: 'Talk/Room-XXTOKENXX/Alice-alice/upload-id1-0-photo.jpg',
+			fileName: 'photo.jpg',
+			referenceId: 'ref-1',
+			talkMetaData: '{}',
+		})
+
+		expect(renames).toEqual([{ 'photo.jpg': 'photo (1).jpg' }])
+	})
+
+	test('postAttachment returns empty array when response has no renames field', async () => {
+		axios.post.mockResolvedValue({})
+
+		const renames = await postAttachment({
+			token: 'XXTOKENXX',
+			filePath: 'Talk/Room-XXTOKENXX/Alice-alice/upload-id1-0-doc.pdf',
+			fileName: 'doc.pdf',
+			referenceId: 'ref-2',
+			talkMetaData: '{}',
+		})
+
+		expect(renames).toEqual([])
+	})
+
+	test('probeAttachmentFolder calls the Talk attachment-folder probe endpoint', async () => {
+		axios.post.mockResolvedValue({
+			data: {
+				ocs: {
+					data: {
+						folder: 'Talk/My Room-XXTOKENXX/Draft',
+						renames: [{ 'photo.jpg': 'photo.jpg' }, { 'photo.jpg': 'photo (1).jpg' }],
+					},
+				},
+			},
+		})
+
+		const probe = await probeAttachmentFolder({
+			token: 'XXTOKENXX',
+			fileNames: ['photo.jpg', 'photo.jpg'],
+		})
+
+		expect(axios.post).toHaveBeenCalledWith(
+			generateOcsUrl('apps/spreed/api/v1/chat/{token}/attachment/folder', { token: 'XXTOKENXX' }),
+			{ fileNames: ['photo.jpg', 'photo.jpg'] },
+		)
+		expect(probe).toEqual({
+			folder: 'Talk/My Room-XXTOKENXX/Draft',
+			renames: [{ 'photo.jpg': 'photo.jpg' }, { 'photo.jpg': 'photo (1).jpg' }],
+		})
 	})
 })
