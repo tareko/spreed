@@ -78,10 +78,8 @@ class PollExportServiceTest extends TestCase {
 
 	public static function dataFormats(): array {
 		return [
-			['xlsx'],
 			['ods'],
 			['csv'],
-			['tsv'],
 		];
 	}
 
@@ -94,7 +92,7 @@ class PollExportServiceTest extends TestCase {
 
 		$this->assertNotEmpty($content);
 
-		if ($format === 'csv' || $format === 'tsv') {
+		if ($format === 'csv') {
 			// Plain text formats: verify they contain expected content
 			$this->assertStringContainsString('What is the best color?', $content);
 			return;
@@ -109,98 +107,6 @@ class PollExportServiceTest extends TestCase {
 		$this->assertTrue($result === true, 'Generated file should be a valid ZIP archive');
 		$zip->close();
 
-		unlink($tempFile);
-	}
-
-	public function testXlsxContainsRequiredFiles(): void {
-		$poll = $this->createPoll();
-		$votes = $this->createVotes();
-
-		$content = $this->service->exportToSpreadsheet($poll, $votes, 'xlsx');
-
-		$tempFile = tempnam(sys_get_temp_dir(), 'poll_test_');
-		file_put_contents($tempFile, $content);
-
-		$zip = new ZipArchive();
-		$zip->open($tempFile);
-
-		$this->assertNotFalse($zip->locateName('[Content_Types].xml'), 'Should contain [Content_Types].xml');
-		$this->assertNotFalse($zip->locateName('_rels/.rels'), 'Should contain _rels/.rels');
-		$this->assertNotFalse($zip->locateName('xl/workbook.xml'), 'Should contain xl/workbook.xml');
-		$this->assertNotFalse($zip->locateName('xl/worksheets/sheet1.xml'), 'Should contain Summary sheet');
-		$this->assertNotFalse($zip->locateName('xl/worksheets/sheet2.xml'), 'Should contain Votes sheet when details available');
-		$this->assertNotFalse($zip->locateName('xl/styles.xml'), 'Should contain xl/styles.xml');
-		$this->assertNotFalse($zip->locateName('xl/sharedStrings.xml'), 'Should contain xl/sharedStrings.xml');
-
-		$zip->close();
-		unlink($tempFile);
-	}
-
-	public function testXlsxSummarySheetContainsPollData(): void {
-		$poll = $this->createPoll();
-
-		$content = $this->service->exportToSpreadsheet($poll, [], 'xlsx');
-
-		$tempFile = tempnam(sys_get_temp_dir(), 'poll_test_');
-		file_put_contents($tempFile, $content);
-
-		$zip = new ZipArchive();
-		$zip->open($tempFile);
-
-		$sharedStrings = $zip->getFromName('xl/sharedStrings.xml');
-		$this->assertStringContainsString('What is the best color?', $sharedStrings);
-		$this->assertStringContainsString('Red', $sharedStrings);
-		$this->assertStringContainsString('Blue', $sharedStrings);
-		$this->assertStringContainsString('Green', $sharedStrings);
-		$this->assertStringContainsString('Question', $sharedStrings);
-		$this->assertStringContainsString('Option', $sharedStrings);
-		$this->assertStringContainsString('Votes', $sharedStrings);
-		$this->assertStringContainsString('Percentage', $sharedStrings);
-
-		$zip->close();
-		unlink($tempFile);
-	}
-
-	public function testXlsxWithoutVotesHasNoSecondSheet(): void {
-		$poll = $this->createPoll();
-
-		$content = $this->service->exportToSpreadsheet($poll, [], 'xlsx');
-
-		$tempFile = tempnam(sys_get_temp_dir(), 'poll_test_');
-		file_put_contents($tempFile, $content);
-
-		$zip = new ZipArchive();
-		$zip->open($tempFile);
-
-		$this->assertFalse($zip->locateName('xl/worksheets/sheet2.xml'), 'Should not contain Votes sheet when no details');
-
-		// Workbook should only reference one sheet
-		$workbook = $zip->getFromName('xl/workbook.xml');
-		$this->assertStringNotContainsString('Votes', $workbook);
-
-		$zip->close();
-		unlink($tempFile);
-	}
-
-	public function testXlsxVotesSheetContainsVoterData(): void {
-		$poll = $this->createPoll();
-		$votes = $this->createVotes();
-
-		$content = $this->service->exportToSpreadsheet($poll, $votes, 'xlsx');
-
-		$tempFile = tempnam(sys_get_temp_dir(), 'poll_test_');
-		file_put_contents($tempFile, $content);
-
-		$zip = new ZipArchive();
-		$zip->open($tempFile);
-
-		$sharedStrings = $zip->getFromName('xl/sharedStrings.xml');
-		$this->assertStringContainsString('User One', $sharedStrings);
-		$this->assertStringContainsString('User Two', $sharedStrings);
-		$this->assertStringContainsString('User Three', $sharedStrings);
-		$this->assertStringContainsString('Voter', $sharedStrings);
-
-		$zip->close();
 		unlink($tempFile);
 	}
 
@@ -295,21 +201,18 @@ class PollExportServiceTest extends TestCase {
 		$poll->setMaxVotes(1);
 
 		// Should not throw any XML parsing errors
-		$xlsxContent = $this->service->exportToSpreadsheet($poll, [], 'xlsx');
-		$this->assertNotEmpty($xlsxContent);
-
 		$odsContent = $this->service->exportToSpreadsheet($poll, [], 'ods');
 		$this->assertNotEmpty($odsContent);
 
-		// Verify the XLSX shared strings contain properly escaped text
+		// Verify the ODS content contains properly escaped text
 		$tempFile = tempnam(sys_get_temp_dir(), 'poll_test_');
-		file_put_contents($tempFile, $xlsxContent);
+		file_put_contents($tempFile, $odsContent);
 		$zip = new ZipArchive();
 		$zip->open($tempFile);
-		$sharedStrings = $zip->getFromName('xl/sharedStrings.xml');
-		$this->assertStringContainsString('&amp;', $sharedStrings);
-		$this->assertStringContainsString('&gt;', $sharedStrings);
-		$this->assertStringContainsString('&lt;', $sharedStrings);
+		$contentXml = $zip->getFromName('content.xml');
+		$this->assertStringContainsString('&amp;', $contentXml);
+		$this->assertStringContainsString('&gt;', $contentXml);
+		$this->assertStringContainsString('&lt;', $contentXml);
 		$zip->close();
 		unlink($tempFile);
 	}
@@ -317,14 +220,14 @@ class PollExportServiceTest extends TestCase {
 	public function testOpenPollShowsOpenStatus(): void {
 		$poll = $this->createPoll(Poll::STATUS_OPEN);
 
-		$content = $this->service->exportToSpreadsheet($poll, [], 'xlsx');
+		$content = $this->service->exportToSpreadsheet($poll, [], 'ods');
 		$tempFile = tempnam(sys_get_temp_dir(), 'poll_test_');
 		file_put_contents($tempFile, $content);
 
 		$zip = new ZipArchive();
 		$zip->open($tempFile);
-		$sharedStrings = $zip->getFromName('xl/sharedStrings.xml');
-		$this->assertStringContainsString('Open', $sharedStrings);
+		$contentXml = $zip->getFromName('content.xml');
+		$this->assertStringContainsString('Open', $contentXml);
 		$zip->close();
 		unlink($tempFile);
 	}
@@ -332,14 +235,14 @@ class PollExportServiceTest extends TestCase {
 	public function testClosedPollShowsClosedStatus(): void {
 		$poll = $this->createPoll(Poll::STATUS_CLOSED);
 
-		$content = $this->service->exportToSpreadsheet($poll, [], 'xlsx');
+		$content = $this->service->exportToSpreadsheet($poll, [], 'ods');
 		$tempFile = tempnam(sys_get_temp_dir(), 'poll_test_');
 		file_put_contents($tempFile, $content);
 
 		$zip = new ZipArchive();
 		$zip->open($tempFile);
-		$sharedStrings = $zip->getFromName('xl/sharedStrings.xml');
-		$this->assertStringContainsString('Closed', $sharedStrings);
+		$contentXml = $zip->getFromName('content.xml');
+		$this->assertStringContainsString('Closed', $contentXml);
 		$zip->close();
 		unlink($tempFile);
 	}
@@ -363,13 +266,26 @@ class PollExportServiceTest extends TestCase {
 		$this->assertStringContainsString('User Three', $content);
 	}
 
-	public function testTsvUsesTabDelimiter(): void {
-		$poll = $this->createPoll();
+	public function testCsvEscapesFormulae(): void {
+		$poll = new Poll();
+		$poll->setRoomId(1);
+		$poll->setActorType('users');
+		$poll->setActorId('admin');
+		$poll->setDisplayName('Admin');
+		$poll->setQuestion('=cmd|calc');
+		$poll->setOptions(['+dangerous', '-formula', '@evil']);
+		$poll->setVotes(json_encode([0 => 1, 1 => 0, 2 => 0]));
+		$poll->setNumVoters(1);
+		$poll->setStatus(Poll::STATUS_CLOSED);
+		$poll->setResultMode(Poll::MODE_PUBLIC);
+		$poll->setMaxVotes(1);
 
-		$content = $this->service->exportToSpreadsheet($poll, [], 'tsv');
+		$content = $this->service->exportToSpreadsheet($poll, [], 'csv');
 
-		$this->assertStringContainsString("Question\t", $content);
-		$this->assertStringContainsString("Option\tVotes\tPercentage", $content);
+		$this->assertStringContainsString("'=cmd|calc", $content);
+		$this->assertStringContainsString("'+dangerous", $content);
+		$this->assertStringContainsString("'-formula", $content);
+		$this->assertStringContainsString("'@evil", $content);
 	}
 
 	public function testEmptyVotesGeneratesValidFile(): void {
@@ -386,10 +302,10 @@ class PollExportServiceTest extends TestCase {
 		$poll->setResultMode(Poll::MODE_PUBLIC);
 		$poll->setMaxVotes(1);
 
-		$xlsxContent = $this->service->exportToSpreadsheet($poll, [], 'xlsx');
-		$this->assertNotEmpty($xlsxContent);
-
 		$odsContent = $this->service->exportToSpreadsheet($poll, [], 'ods');
 		$this->assertNotEmpty($odsContent);
+
+		$csvContent = $this->service->exportToSpreadsheet($poll, [], 'csv');
+		$this->assertNotEmpty($csvContent);
 	}
 }

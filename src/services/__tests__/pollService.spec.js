@@ -27,25 +27,6 @@ describe('pollService', () => {
 	})
 
 	describe('exportPoll', () => {
-		it('calls the export endpoint with xlsx format and blob response type', async () => {
-			const blob = new Blob(['test'], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-			axios.get.mockResolvedValue({
-				data: blob,
-				headers: { 'content-disposition': 'attachment; filename="room - Poll - test - 2026-04-09.xlsx"' },
-			})
-
-			await exportPoll('TOKEN123', 42, 'xlsx')
-
-			expect(axios.get).toHaveBeenCalledWith(
-				generateOcsUrl('apps/spreed/api/v1/poll/{token}/{pollId}/export/{format}', {
-					token: 'TOKEN123',
-					pollId: 42,
-					format: 'xlsx',
-				}),
-				{ responseType: 'blob' },
-			)
-		})
-
 		it('calls the export endpoint with ods format', async () => {
 			const blob = new Blob(['test'], { type: 'application/vnd.oasis.opendocument.spreadsheet' })
 			axios.get.mockResolvedValue({
@@ -70,12 +51,12 @@ describe('pollService', () => {
 			const blob = new Blob(['test'])
 			axios.get.mockResolvedValue({
 				data: blob,
-				headers: { 'content-disposition': 'attachment; filename="My-Room - Poll - Question - 2026-04-09.xlsx"' },
+				headers: { 'content-disposition': 'attachment; filename="My-Room - Poll - Question - 2026-04-09.ods"' },
 			})
 
-			await exportPoll('TOKEN123', 1, 'xlsx')
+			await exportPoll('TOKEN123', 1, 'ods')
 
-			expect(downloadBlob).toHaveBeenCalledWith(blob, 'My-Room - Poll - Question - 2026-04-09.xlsx')
+			expect(downloadBlob).toHaveBeenCalledWith(blob, 'My-Room - Poll - Question - 2026-04-09.ods')
 		})
 
 		it('calls the export endpoint with csv format', async () => {
@@ -92,25 +73,6 @@ describe('pollService', () => {
 					token: 'TOKEN123',
 					pollId: 42,
 					format: 'csv',
-				}),
-				{ responseType: 'blob' },
-			)
-		})
-
-		it('calls the export endpoint with tsv format', async () => {
-			const blob = new Blob(['test'], { type: 'text/tab-separated-values' })
-			axios.get.mockResolvedValue({
-				data: blob,
-				headers: { 'content-disposition': 'attachment; filename="room - Poll - test - 2026-04-09.tsv"' },
-			})
-
-			await exportPoll('TOKEN123', 42, 'tsv')
-
-			expect(axios.get).toHaveBeenCalledWith(
-				generateOcsUrl('apps/spreed/api/v1/poll/{token}/{pollId}/export/{format}', {
-					token: 'TOKEN123',
-					pollId: 42,
-					format: 'tsv',
 				}),
 				{ responseType: 'blob' },
 			)

@@ -1020,13 +1020,11 @@ Feature: chat-3/poll
       | status     | closed |
       | votedSelf  | [0] |
       | details    | [{"actorType":"users","actorId":"participant1","actorDisplayName":"participant1-displayname","optionId":0},{"actorType":"users","actorId":"participant2","actorDisplayName":"participant2-displayname","optionId":1}] |
-    # Moderator (participant1) can export as xlsx, ods, csv, and tsv
-    Then user "participant1" exports poll "What is the question?" from room "room" as "xlsx" with 200
+    # Moderator (participant1) can export as ods and csv
     Then user "participant1" exports poll "What is the question?" from room "room" as "ods" with 200
     Then user "participant1" exports poll "What is the question?" from room "room" as "csv" with 200
-    Then user "participant1" exports poll "What is the question?" from room "room" as "tsv" with 200
     # Non-moderator non-owner (participant2) cannot export
-    Then user "participant2" exports poll "What is the question?" from room "room" as "xlsx" with 403
+    Then user "participant2" exports poll "What is the question?" from room "room" as "ods" with 403
 
   Scenario: Export permission for poll owner who is not moderator
     Given user "participant1" creates room "room" (v4)
@@ -1066,7 +1064,7 @@ Feature: chat-3/poll
       | votedSelf  | not voted |
       | details    | [{"actorType":"users","actorId":"participant2","actorDisplayName":"participant2-displayname","optionId":0}] |
     # Poll owner (participant2) can export even though not moderator
-    Then user "participant2" exports poll "Owner poll" from room "room" as "xlsx" with 200
+    Then user "participant2" exports poll "Owner poll" from room "room" as "ods" with 200
 
   Scenario: Cannot export a draft poll
     Given user "participant1" creates room "room" (v4)
@@ -1078,4 +1076,4 @@ Feature: chat-3/poll
       | resultMode | public |
       | maxVotes   | unlimited |
       | draft      | 1 |
-    Then user "participant1" exports poll "Draft question" from room "room" as "xlsx" with 404
+    Then user "participant1" exports poll "Draft question" from room "room" as "ods" with 404

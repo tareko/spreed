@@ -16,230 +16,18 @@ use ZipArchive;
 class PollExportService {
 
 	/**
-	 * Generate a spreadsheet file (XLSX, ODS, CSV, or TSV) from poll data.
+	 * Generate a spreadsheet file (ODS or CSV) from poll data.
 	 *
 	 * @param Poll $poll The poll to export
 	 * @param list<Vote> $votes Detailed votes (empty for hidden polls)
-	 * @param 'xlsx'|'ods'|'csv'|'tsv' $format The output format
+	 * @param 'ods'|'csv' $format The output format
 	 * @return string The file content
 	 */
 	public function exportToSpreadsheet(Poll $poll, array $votes, string $format): string {
 		return match ($format) {
-			'ods' => $this->generateOds($poll, $votes),
-			'csv' => $this->generateDelimited($poll, $votes, ','),
-			'tsv' => $this->generateDelimited($poll, $votes, "\t"),
-			default => $this->generateXlsx($poll, $votes),
+			'csv' => $this->generateCsv($poll, $votes),
+			default => $this->generateOds($poll, $votes),
 		};
-	}
-
-	private function generateXlsx(Poll $poll, array $votes): string {
-		$options = json_decode($poll->getOptions(), true, 512, JSON_THROW_ON_ERROR);
-		$voteData = json_decode($poll->getVotes(), true, 512, JSON_THROW_ON_ERROR);
-		$numVoters = $poll->getNumVoters();
-		$hasDetails = !empty($votes);
-
-		// Build shared strings table
-		$strings = [];
-		$stringIndex = [];
-		$addString = function (string $s) use (&$strings, &$stringIndex): int {
-			if (!isset($stringIndex[$s])) {
-				$stringIndex[$s] = count($strings);
-				$strings[] = $s;
-			}
-			return $stringIndex[$s];
-		};
-
-		// Pre-register all strings
-		$addString('Question');
-		$addString($poll->getQuestion());
-		$addString('Total voters');
-		$addString('Status');
-		$addString($poll->getStatus() === Poll::STATUS_CLOSED ? 'Closed' : 'Open');
-		$addString('Option');
-		$addString('Votes');
-		$addString('Percentage');
-		foreach ($options as $option) {
-			$addString($option);
-		}
-		if ($hasDetails) {
-			$addString('Voter');
-			foreach ($votes as $vote) {
-				$addString($vote->getDisplayName() ?? '');
-				$addString($options[$vote->getOptionId()] ?? '');
-			}
-		}
-
-		// Build shared strings XML
-		$sharedStringsXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' . "\n"
-			. '<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="' . count($strings) . '" uniqueCount="' . count($strings) . '">';
-		foreach ($strings as $s) {
-			$sharedStringsXml .= '<si><t>' . htmlspecialchars($s, ENT_XML1 | ENT_QUOTES, 'UTF-8') . '</t></si>';
-		}
-		$sharedStringsXml .= '</sst>';
-
-		// Build Sheet 1 (Summary)
-		$sheet1 = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' . "\n"
-			. '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-			. '<sheetData>';
-
-		// Row 1: Question label + question text
-		$sheet1 .= '<row r="1">'
-			. '<c r="A1" t="s" s="1"><v>' . $addString('Question') . '</v></c>'
-			. '<c r="B1" t="s"><v>' . $addString($poll->getQuestion()) . '</v></c>'
-			. '</row>';
-
-		// Row 2: Total voters
-		$sheet1 .= '<row r="2">'
-			. '<c r="A2" t="s" s="1"><v>' . $addString('Total voters') . '</v></c>'
-			. '<c r="B2"><v>' . $numVoters . '</v></c>'
-			. '</row>';
-
-		// Row 3: Status
-		$statusStr = $poll->getStatus() === Poll::STATUS_CLOSED ? 'Closed' : 'Open';
-		$sheet1 .= '<row r="3">'
-			. '<c r="A3" t="s" s="1"><v>' . $addString('Status') . '</v></c>'
-			. '<c r="B3" t="s"><v>' . $addString($statusStr) . '</v></c>'
-			. '</row>';
-
-		// Row 4: empty
-
-		// Row 5: Headers
-		$sheet1 .= '<row r="5">'
-			. '<c r="A5" t="s" s="1"><v>' . $addString('Option') . '</v></c>'
-			. '<c r="B5" t="s" s="1"><v>' . $addString('Votes') . '</v></c>'
-			. '<c r="C5" t="s" s="1"><v>' . $addString('Percentage') . '</v></c>'
-			. '</row>';
-
-		// Data rows
-		$row = 6;
-		foreach ($options as $index => $option) {
-			$count = $voteData[$index] ?? 0;
-			$percentage = $numVoters > 0 ? round(($count / $numVoters) * 100, 1) : 0;
-			$col = $this->xlsxColumnLetter(0);
-			$sheet1 .= '<row r="' . $row . '">'
-				. '<c r="A' . $row . '" t="s"><v>' . $addString($option) . '</v></c>'
-				. '<c r="B' . $row . '"><v>' . $count . '</v></c>'
-				. '<c r="C' . $row . '"><v>' . $percentage . '</v></c>'
-				. '</row>';
-			$row++;
-		}
-
-		$sheet1 .= '</sheetData></worksheet>';
-
-		// Build Sheet 2 (Votes) if details available
-		$sheet2 = null;
-		if ($hasDetails) {
-			$sheet2 = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' . "\n"
-				. '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-				. '<sheetData>';
-
-			// Header row
-			$sheet2 .= '<row r="1">'
-				. '<c r="A1" t="s" s="1"><v>' . $addString('Voter') . '</v></c>'
-				. '<c r="B1" t="s" s="1"><v>' . $addString('Option') . '</v></c>'
-				. '</row>';
-
-			$row = 2;
-			foreach ($votes as $vote) {
-				$voterName = $vote->getDisplayName() ?? '';
-				$optionText = $options[$vote->getOptionId()] ?? '';
-				$sheet2 .= '<row r="' . $row . '">'
-					. '<c r="A' . $row . '" t="s"><v>' . $addString($voterName) . '</v></c>'
-					. '<c r="B' . $row . '" t="s"><v>' . $addString($optionText) . '</v></c>'
-					. '</row>';
-				$row++;
-			}
-
-			$sheet2 .= '</sheetData></worksheet>';
-		}
-
-		// Rebuild shared strings XML with all strings
-		$sharedStringsXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' . "\n"
-			. '<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="' . count($strings) . '" uniqueCount="' . count($strings) . '">';
-		foreach ($strings as $s) {
-			$sharedStringsXml .= '<si><t>' . htmlspecialchars($s, ENT_XML1 | ENT_QUOTES, 'UTF-8') . '</t></si>';
-		}
-		$sharedStringsXml .= '</sst>';
-
-		// Content Types
-		$contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' . "\n"
-			. '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
-			. '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
-			. '<Default Extension="xml" ContentType="application/xml"/>'
-			. '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
-			. '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>';
-		if ($sheet2 !== null) {
-			$contentTypes .= '<Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>';
-		}
-		$contentTypes .= '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
-			. '<Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>'
-			. '</Types>';
-
-		// Root rels
-		$rootRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' . "\n"
-			. '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-			. '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
-			. '</Relationships>';
-
-		// Workbook
-		$workbook = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' . "\n"
-			. '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
-			. '<sheets>'
-			. '<sheet name="Summary" sheetId="1" r:id="rId1"/>';
-		if ($sheet2 !== null) {
-			$workbook .= '<sheet name="Votes" sheetId="2" r:id="rId2"/>';
-		}
-		$workbook .= '</sheets></workbook>';
-
-		// Workbook rels
-		$workbookRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' . "\n"
-			. '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-			. '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>';
-		if ($sheet2 !== null) {
-			$workbookRels .= '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>';
-		}
-		$workbookRels .= '<Relationship Id="rId' . ($sheet2 !== null ? '3' : '2') . '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
-			. '<Relationship Id="rId' . ($sheet2 !== null ? '4' : '3') . '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>'
-			. '</Relationships>';
-
-		// Styles (minimal: bold font for headers)
-		$styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' . "\n"
-			. '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-			. '<fonts count="2">'
-			. '<font><sz val="11"/><name val="Calibri"/></font>'
-			. '<font><b/><sz val="11"/><name val="Calibri"/></font>'
-			. '</fonts>'
-			. '<fills count="1"><fill><patternFill patternType="none"/></fill></fills>'
-			. '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>'
-			. '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
-			. '<cellXfs count="2">'
-			. '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
-			. '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
-			. '</cellXfs>'
-			. '</styleSheet>';
-
-		// Create ZIP
-		$tempFile = tempnam(sys_get_temp_dir(), 'poll_export_');
-		$zip = new ZipArchive();
-		$zip->open($tempFile, ZipArchive::OVERWRITE);
-
-		$zip->addFromString('[Content_Types].xml', $contentTypes);
-		$zip->addFromString('_rels/.rels', $rootRels);
-		$zip->addFromString('xl/workbook.xml', $workbook);
-		$zip->addFromString('xl/_rels/workbook.xml.rels', $workbookRels);
-		$zip->addFromString('xl/styles.xml', $styles);
-		$zip->addFromString('xl/sharedStrings.xml', $sharedStringsXml);
-		$zip->addFromString('xl/worksheets/sheet1.xml', $sheet1);
-		if ($sheet2 !== null) {
-			$zip->addFromString('xl/worksheets/sheet2.xml', $sheet2);
-		}
-
-		$zip->close();
-
-		$content = file_get_contents($tempFile);
-		unlink($tempFile);
-
-		return $content;
 	}
 
 	private function generateOds(Poll $poll, array $votes): string {
@@ -386,7 +174,7 @@ class PollExportService {
 		return $content;
 	}
 
-	private function generateDelimited(Poll $poll, array $votes, string $delimiter): string {
+	private function generateCsv(Poll $poll, array $votes): string {
 		$options = json_decode($poll->getOptions(), true, 512, JSON_THROW_ON_ERROR);
 		$voteData = json_decode($poll->getVotes(), true, 512, JSON_THROW_ON_ERROR);
 		$numVoters = $poll->getNumVoters();
@@ -396,27 +184,27 @@ class PollExportService {
 		$output = fopen('php://memory', 'r+');
 
 		// Summary section
-		fputcsv($output, ['Question', $poll->getQuestion()], $delimiter);
-		fputcsv($output, ['Total voters', (string)$numVoters], $delimiter);
-		fputcsv($output, ['Status', $statusStr], $delimiter);
-		fputcsv($output, [], $delimiter);
+		fputcsv($output, ['Question', $this->escapeFormulae($poll->getQuestion())]);
+		fputcsv($output, ['Total voters', (string)$numVoters]);
+		fputcsv($output, ['Status', $statusStr]);
+		fputcsv($output, []);
 
 		// Options table
-		fputcsv($output, ['Option', 'Votes', 'Percentage'], $delimiter);
+		fputcsv($output, ['Option', 'Votes', 'Percentage']);
 		foreach ($options as $index => $option) {
 			$count = $voteData[$index] ?? 0;
 			$percentage = $numVoters > 0 ? round(($count / $numVoters) * 100, 1) : 0;
-			fputcsv($output, [$option, (string)$count, (string)$percentage], $delimiter);
+			fputcsv($output, [$this->escapeFormulae($option), (string)$count, (string)$percentage]);
 		}
 
 		// Voter details section
 		if ($hasDetails) {
-			fputcsv($output, [], $delimiter);
-			fputcsv($output, ['Voter', 'Option'], $delimiter);
+			fputcsv($output, []);
+			fputcsv($output, ['Voter', 'Option']);
 			foreach ($votes as $vote) {
 				$voterName = $vote->getDisplayName() ?? '';
 				$optionText = $options[$vote->getOptionId()] ?? '';
-				fputcsv($output, [$voterName, $optionText], $delimiter);
+				fputcsv($output, [$this->escapeFormulae($voterName), $this->escapeFormulae($optionText)]);
 			}
 		}
 
@@ -427,7 +215,10 @@ class PollExportService {
 		return $content;
 	}
 
-	private function xlsxColumnLetter(int $index): string {
-		return chr(65 + $index);
+	protected function escapeFormulae(string $value): string {
+		if (preg_match('/^[=+\-@\t\r]/', $value)) {
+			return "'" . $value;
+		}
+		return $value;
 	}
 }

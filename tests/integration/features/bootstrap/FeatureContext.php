@@ -2525,7 +2525,7 @@ class FeatureContext implements Context, SnippetAcceptingContext {
 		$this->assertPollEquals($expected, $response);
 	}
 
-	#[Then('/^user "([^"]*)" exports poll "([^"]*)" from room "([^"]*)" as "(xlsx|ods|csv|tsv)" with (\d+)(?: \((v1)\))?$/')]
+	#[Then('/^user "([^"]*)" exports poll "([^"]*)" from room "([^"]*)" as "(ods|csv)" with (\d+)(?: \((v1)\))?$/')]
 	public function userExportsPollFromRoom(string $user, string $question, string $identifier, string $format, int $statusCode, string $apiVersion = 'v1'): void {
 		$this->setCurrentUser($user);
 		$this->sendRequest('GET', '/apps/spreed/api/' . $apiVersion . '/poll/' . self::$identifierToToken[$identifier] . '/' . self::$questionToPollId[$question] . '/export/' . $format);
@@ -2538,13 +2538,13 @@ class FeatureContext implements Context, SnippetAcceptingContext {
 		$body = $this->response->getBody()->getContents();
 		Assert::assertNotEmpty($body, 'Export response body should not be empty');
 
-		if ($format === 'csv' || $format === 'tsv') {
-			// Plain text formats: verify they contain recognizable content
+		if ($format === 'csv') {
+			// Plain text format: verify it contains recognizable content
 			Assert::assertStringContainsString('Question', $body, 'Export should contain poll data');
 			return;
 		}
 
-		// Verify it's a valid ZIP file (both XLSX and ODS are ZIP-based)
+		// Verify it's a valid ZIP file (ODS is ZIP-based)
 		$tempFile = tempnam(sys_get_temp_dir(), 'poll_export_test_');
 		file_put_contents($tempFile, $body);
 		$zip = new \ZipArchive();

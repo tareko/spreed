@@ -490,7 +490,7 @@ class PollController extends AEnvironmentAwareOCSController {
 		'apiVersion' => '(v1)',
 		'token' => '[a-z0-9]{4,30}',
 		'pollId' => '\d+',
-		'format' => '(xlsx|ods|csv|tsv)',
+		'format' => '(ods|csv)',
 	])]
 	public function exportPoll(int $pollId, string $format): DataDownloadResponse|DataResponse {
 		try {
@@ -527,10 +527,8 @@ class PollController extends AEnvironmentAwareOCSController {
 		$fileName = $cleanedRoomName . ' - Poll - ' . $cleanedQuestion . ' - ' . $date . '.' . $format;
 
 		$mimeType = match ($format) {
-			'ods' => 'application/vnd.oasis.opendocument.spreadsheet',
 			'csv' => 'text/csv',
-			'tsv' => 'text/tab-separated-values',
-			default => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+			default => 'application/vnd.oasis.opendocument.spreadsheet',
 		};
 
 		return new DataDownloadResponse($content, $fileName, $mimeType);

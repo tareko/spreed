@@ -120,62 +120,31 @@
 				</NcButton>
 			</div>
 			<div v-else-if="selfIsOwnerOrModerator" class="poll-modal__actions">
-				<NcActions forceMenu @close="actionsSubmenu = null">
-					<template v-if="actionsSubmenu === null">
-						<NcActionButton v-if="supportPollDrafts && isModerator" @click="createPollDraft">
-							<template #icon>
-								<IconFileEditOutline :size="20" />
-							</template>
-							{{ t('spreed', 'Save as draft') }}
-						</NcActionButton>
-						<NcActionLink v-if="supportPollDrafts" :href="exportPollURI" :download="exportPollFileName">
-							<template #icon>
-								<NcIconSvgWrapper :svg="IconFileDownload" :size="20" />
-							</template>
-							{{ t('spreed', 'Export draft to file') }}
-						</NcActionLink>
-						<NcActionButton v-if="isPollClosed"
-							isMenu
-							@click.stop="actionsSubmenu = 'download'">
-							<template #icon>
-								<NcIconSvgWrapper :svg="IconFileDownload" :size="20" />
-							</template>
-							{{ t('spreed', 'Download') }}
-						</NcActionButton>
-					</template>
-					<template v-else-if="actionsSubmenu === 'download'">
-						<NcActionButton @click.stop="actionsSubmenu = null">
-							<template #icon>
-								<IconArrowLeft :size="20" />
-							</template>
-							{{ t('spreed', 'Back') }}
-						</NcActionButton>
-						<NcActionSeparator />
-						<NcActionButton closeAfterClick @click="downloadAsSpreadsheet('xlsx')">
-							<template #icon>
-								<NcIconSvgWrapper :svg="IconFileDownload" :size="20" />
-							</template>
-							{{ t('spreed', 'XLSX') }}
-						</NcActionButton>
-						<NcActionButton closeAfterClick @click="downloadAsSpreadsheet('ods')">
-							<template #icon>
-								<NcIconSvgWrapper :svg="IconFileDownload" :size="20" />
-							</template>
-							{{ t('spreed', 'ODS') }}
-						</NcActionButton>
-						<NcActionButton closeAfterClick @click="downloadAsSpreadsheet('csv')">
-							<template #icon>
-								<NcIconSvgWrapper :svg="IconFileDownload" :size="20" />
-							</template>
-							{{ t('spreed', 'CSV') }}
-						</NcActionButton>
-						<NcActionButton closeAfterClick @click="downloadAsSpreadsheet('tsv')">
-							<template #icon>
-								<NcIconSvgWrapper :svg="IconFileDownload" :size="20" />
-							</template>
-							{{ t('spreed', 'TSV') }}
-						</NcActionButton>
-					</template>
+				<NcActions forceMenu>
+					<NcActionButton v-if="supportPollDrafts && isModerator" @click="createPollDraft">
+						<template #icon>
+							<IconFileEditOutline :size="20" />
+						</template>
+						{{ t('spreed', 'Save as draft') }}
+					</NcActionButton>
+					<NcActionLink v-if="supportPollDrafts" :href="exportPollURI" :download="exportPollFileName">
+						<template #icon>
+							<NcIconSvgWrapper :svg="IconFileDownload" :size="20" />
+						</template>
+						{{ t('spreed', 'Export draft to file') }}
+					</NcActionLink>
+					<NcActionButton v-if="isPollClosed" closeAfterClick @click="downloadAsSpreadsheet('ods')">
+						<template #icon>
+							<NcIconSvgWrapper :svg="IconFileDownload" :size="20" />
+						</template>
+						{{ t('spreed', 'Download as spreadsheet') }}
+					</NcActionButton>
+					<NcActionButton v-if="isPollClosed" closeAfterClick @click="downloadAsSpreadsheet('csv')">
+						<template #icon>
+							<NcIconSvgWrapper :svg="IconFileDownload" :size="20" />
+						</template>
+						{{ t('spreed', 'Download as CSV') }}
+					</NcActionButton>
 				</NcActions>
 			</div>
 		</div>
@@ -188,7 +157,6 @@ import { n, t } from '@nextcloud/l10n'
 import { computed, ref, useId } from 'vue'
 import NcActionButton from '@nextcloud/vue/components/NcActionButton'
 import NcActionLink from '@nextcloud/vue/components/NcActionLink'
-import NcActionSeparator from '@nextcloud/vue/components/NcActionSeparator'
 import NcActions from '@nextcloud/vue/components/NcActions'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
@@ -199,7 +167,6 @@ import NcModal from '@nextcloud/vue/components/NcModal'
 import NcProgressBar from '@nextcloud/vue/components/NcProgressBar'
 import IconChartBoxOutline from 'vue-material-design-icons/ChartBoxOutline.vue'
 import IconCheck from 'vue-material-design-icons/Check.vue'
-import IconArrowLeft from 'vue-material-design-icons/ArrowLeft.vue'
 import IconFileEditOutline from 'vue-material-design-icons/FileEditOutline.vue'
 import IconFileLockOutline from 'vue-material-design-icons/FileLockOutline.vue'
 import PollVotersDetails from './PollVotersDetails.vue'
@@ -221,7 +188,6 @@ export default {
 		NcActions,
 		NcActionButton,
 		NcActionLink,
-		NcActionSeparator,
 		NcCheckboxRadioSwitch,
 		NcChip,
 		NcLoadingIcon,
@@ -231,7 +197,6 @@ export default {
 		NcProgressBar,
 		PollVotersDetails,
 		// icons
-		IconArrowLeft,
 		IconCheck,
 		IconFileLockOutline,
 		IconFileEditOutline,
@@ -242,7 +207,6 @@ export default {
 		const voteToSubmit = ref([])
 		const modalPage = ref('')
 		const loading = ref(false)
-		const actionsSubmenu = ref(null)
 		const dialogHeaderId = `guest-welcome-header-${useId()}`
 
 		const pollsStore = usePollsStore()
@@ -270,7 +234,6 @@ export default {
 			voteToSubmit,
 			modalPage,
 			loading,
-			actionsSubmenu,
 			dialogHeaderId,
 			name,
 			id,
