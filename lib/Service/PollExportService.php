@@ -94,8 +94,8 @@ class PollExportService {
 			$percentage = $numVoters > 0 ? round(($count / $numVoters) * 100, 1) : 0;
 			$content .= '<table:table-row>'
 				. '<table:table-cell office:value-type="string"><text:p>' . $esc($option) . '</text:p></table:table-cell>'
-				. '<table:table-cell office:value-type="float" office:value="' . $count . '"><text:p>' . $count . '</text:p></table:table-cell>'
-				. '<table:table-cell office:value-type="float" office:value="' . $percentage . '"><text:p>' . $percentage . '</text:p></table:table-cell>'
+				. '<table:table-cell office:value-type="float" office:value="' . (string)$count . '"><text:p>' . (string)$count . '</text:p></table:table-cell>'
+				. '<table:table-cell office:value-type="float" office:value="' . (string)$percentage . '"><text:p>' . (string)$percentage . '</text:p></table:table-cell>'
 				. '</table:table-row>';
 		}
 
@@ -168,7 +168,7 @@ class PollExportService {
 
 		$zip->close();
 
-		$content = file_get_contents($tempFile);
+		$content = (string)file_get_contents($tempFile);
 		unlink($tempFile);
 
 		return $content;
@@ -184,32 +184,32 @@ class PollExportService {
 		$output = fopen('php://memory', 'r+');
 
 		// Summary section
-		fputcsv($output, ['Question', $this->escapeFormulae($poll->getQuestion())]);
-		fputcsv($output, ['Total voters', (string)$numVoters]);
-		fputcsv($output, ['Status', $statusStr]);
-		fputcsv($output, []);
+		fputcsv($output, ['Question', $this->escapeFormulae($poll->getQuestion())], escape: '\\');
+		fputcsv($output, ['Total voters', (string)$numVoters], escape: '\\');
+		fputcsv($output, ['Status', $statusStr], escape: '\\');
+		fputcsv($output, [], escape: '\\');
 
 		// Options table
-		fputcsv($output, ['Option', 'Votes', 'Percentage']);
+		fputcsv($output, ['Option', 'Votes', 'Percentage'], escape: '\\');
 		foreach ($options as $index => $option) {
 			$count = $voteData[$index] ?? 0;
 			$percentage = $numVoters > 0 ? round(($count / $numVoters) * 100, 1) : 0;
-			fputcsv($output, [$this->escapeFormulae($option), (string)$count, (string)$percentage]);
+			fputcsv($output, [$this->escapeFormulae($option), (string)$count, (string)$percentage], escape: '\\');
 		}
 
 		// Voter details section
 		if ($hasDetails) {
-			fputcsv($output, []);
-			fputcsv($output, ['Voter', 'Option']);
+			fputcsv($output, [], escape: '\\');
+			fputcsv($output, ['Voter', 'Option'], escape: '\\');
 			foreach ($votes as $vote) {
 				$voterName = $vote->getDisplayName() ?? '';
 				$optionText = $options[$vote->getOptionId()] ?? '';
-				fputcsv($output, [$this->escapeFormulae($voterName), $this->escapeFormulae($optionText)]);
+				fputcsv($output, [$this->escapeFormulae($voterName), $this->escapeFormulae($optionText)], escape: '\\');
 			}
 		}
 
 		rewind($output);
-		$content = stream_get_contents($output);
+		$content = (string)stream_get_contents($output);
 		fclose($output);
 
 		return $content;

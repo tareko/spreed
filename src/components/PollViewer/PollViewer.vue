@@ -177,8 +177,8 @@ import { hasTalkFeature } from '../../services/CapabilitiesManager.ts'
 import { EventBus } from '../../services/EventBus.ts'
 import { useActorStore } from '../../stores/actor.ts'
 import { usePollsStore } from '../../stores/polls.ts'
-import { calculateVotePercentage } from '../../utils/calculateVotePercentage.ts'
 import { exportPoll } from '../../services/pollService.ts'
+import { calculateVotePercentage } from '../../utils/calculateVotePercentage.ts'
 import { convertToJSONDataURI } from '../../utils/fileDownload.ts'
 
 export default {

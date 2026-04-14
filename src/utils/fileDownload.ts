@@ -55,6 +55,6 @@ function downloadBlob(blob: Blob, filename: string): void {
 export {
 	convertToDataURI,
 	convertToJSONDataURI,
-	downloadDataURL,
 	downloadBlob,
+	downloadDataURL,
 }
