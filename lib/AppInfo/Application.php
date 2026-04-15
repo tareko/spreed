@@ -109,6 +109,7 @@ use OCA\Talk\Notification\Listener as NotificationListener;
 use OCA\Talk\Notification\Notifier;
 use OCA\Talk\OCP\TalkBackend;
 use OCA\Talk\Profile\TalkAction;
+use OCA\Talk\Profile\TalkCallAction;
 use OCA\Talk\PublicShare\TemplateLoader as PublicShareTemplateLoader;
 use OCA\Talk\PublicShareAuth\Listener as PublicShareAuthListener;
 use OCA\Talk\PublicShareAuth\TemplateLoader as PublicShareAuthTemplateLoader;
@@ -372,6 +373,7 @@ class Application extends App implements IBootstrap {
 		$context->registerNotifierService(Notifier::class);
 
 		$context->registerProfileLinkAction(TalkAction::class);
+		$context->registerProfileLinkAction(TalkCallAction::class);
 
 		$context->registerReferenceProvider(TalkReferenceProvider::class);
 

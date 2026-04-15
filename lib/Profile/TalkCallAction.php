@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * SPDX-FileCopyrightText: 2021 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
@@ -11,17 +11,20 @@ namespace OCA\Talk\Profile;
 
 use OCA\Talk\AppInfo\Application;
 use OCA\Talk\Config;
+use OCA\Talk\Room;
+use OCP\IConfig;
 use OCP\IL10N;
 use OCP\IURLGenerator;
 use OCP\IUser;
 use OCP\IUserSession;
 use OCP\Profile\ILinkAction;
 
-class TalkAction implements ILinkAction {
+class TalkCallAction implements ILinkAction {
 	private ?IUser $targetUser = null;
 
 	public function __construct(
 		private Config $config,
+		private IConfig $serverConfig,
 		private IL10N $l,
 		private IURLGenerator $urlGenerator,
 		private IUserSession $userSession,
@@ -40,12 +43,12 @@ class TalkAction implements ILinkAction {
 
 	#[\Override]
 	public function getId(): string {
-		return 'talk';
+		return 'talk-call';
 	}
 
 	#[\Override]
 	public function getDisplayId(): string {
-		return $this->l->t('Contact via Talk');
+		return $this->l->t('Call via Talk');
 	}
 
 	#[\Override]
@@ -54,18 +57,18 @@ class TalkAction implements ILinkAction {
 		if (!$visitingUser || $visitingUser === $this->targetUser) {
 			return $this->l->t('Open Talk');
 		}
-		return $this->l->t('Chat with %s', [$this->targetUser->getDisplayName()]);
+		return $this->l->t('Call %s', [$this->targetUser->getDisplayName()]);
 	}
 
 	#[\Override]
 	public function getPriority(): int {
 		// priorize actions, low order ones are shown on top
-		return 10;
+		return 11;
 	}
 
 	#[\Override]
 	public function getIcon(): string {
-		return $this->urlGenerator->getAbsoluteURL($this->urlGenerator->imagePath(Application::APP_ID, 'app-dark.svg'));
+		return $this->urlGenerator->getAbsoluteURL($this->urlGenerator->imagePath(Application::APP_ID, 'icon-phone-dark.svg'));
 	}
 
 	#[\Override]
@@ -73,6 +76,7 @@ class TalkAction implements ILinkAction {
 		$visitingUser = $this->userSession->getUser();
 		if (
 			!$visitingUser
+			|| ((int)$this->serverConfig->getAppValue('spreed', 'start_calls') === Room::START_CALL_NOONE)
 			|| $this->config->isDisabledForUser($this->targetUser)
 			|| $this->config->isDisabledForUser($visitingUser)
 		) {
@@ -81,6 +85,6 @@ class TalkAction implements ILinkAction {
 		if ($visitingUser === $this->targetUser) {
 			return $this->urlGenerator->linkToRouteAbsolute('spreed.Page.index');
 		}
-		return $this->urlGenerator->linkToRouteAbsolute('spreed.Page.index') . '?callUser=' . $this->targetUser->getUID();
+		return $this->urlGenerator->linkToRouteAbsolute('spreed.Page.index') . '?callUser=' . $this->targetUser->getUID() . '#direct-call';
 	}
 }
