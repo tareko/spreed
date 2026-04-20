@@ -79,7 +79,7 @@ async function probeAttachmentFolder({ token, fileNames }: ProbeAttachmentFolder
 	return await axios.post<{ ocs: { data: ProbeAttachmentFolderData } }>(
 		generateOcsUrl('apps/spreed/api/v1/chat/{token}/attachment/folder', { token }),
 		{ fileNames },
-	).then(response => response.data?.ocs?.data)
+	).then((response) => response.data?.ocs?.data)
 }
 
 /**

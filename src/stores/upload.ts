@@ -57,6 +57,17 @@ type UploadFilesPayload = {
 	options: Pick<ChatMessage, | 'threadId' | 'threadTitle' | 'silent' | 'parent'> | null
 }
 
+type PerformSharePayload = { 
+	token: string, 
+	path: string, 
+	index?: string, 
+	uploadId?: string, 
+	id?: number, 
+	referenceId?: string, 
+	talkMetaData?: string, 
+	fileName?: string 
+}
+	
 export const useUploadStore = defineStore('upload', () => {
 	const actorStore = useActorStore()
 	const chatExtrasStore = useChatExtrasStore()
@@ -392,7 +403,7 @@ export const useUploadStore = defineStore('upload', () => {
 				const probe = await probeAttachmentFolder({ token, fileNames })
 				uploads[uploadId].draftFolderPath = probe.folder
 			} catch (error) {
-				console.error('Error while probing conversation attachment folder, falling back to flat upload: ', error)
+				console.error('Error while creating conversation attachment folder, falling back to flat upload: ', error)
 			}
 		}
 
@@ -590,12 +601,13 @@ export const useUploadStore = defineStore('upload', () => {
 	 * @param [payload.fileName] Original file name — when present together
 	 *        with a stored draftFolderPath, the attachment endpoint is used
 	 */
-	async function performShare({ token, path, index, uploadId, id, referenceId, talkMetaData, fileName }: { token: string, path: string, index?: string, uploadId?: string, id?: number, referenceId?: string, talkMetaData?: string, fileName?: string }) {
+	async function performShare({ token, path, index, uploadId, id, referenceId, talkMetaData, fileName }: PerformSharePayload) {
 		try {
-			if (uploadId && index) {
-				markFileAsSharing({ uploadId, index })
+			if (!uploadId || !index) {
+				throw new Error('Missing uploadId or index for sharing file')
 			}
-
+			markFileAsSharing({ uploadId, index })
+			
 			const draftFolderPath = uploadId ? uploads[uploadId]?.draftFolderPath : undefined
 			if (draftFolderPath && fileName) {
 				// Draft-folder flow: post via the Talk attachment endpoint
@@ -605,9 +617,7 @@ export const useUploadStore = defineStore('upload', () => {
 				await shareFileApi({ path, shareWith: token, referenceId, talkMetaData })
 			}
 
-			if (uploadId && index) {
-				markFileAsShared({ uploadId, index })
-			}
+			markFileAsShared({ uploadId, index })
 		} catch (error) {
 			console.error('Error while sharing file: ', error)
 
@@ -630,8 +640,8 @@ export const useUploadStore = defineStore('upload', () => {
 	 * Used by external callers (NewMessage, NewFileDialog) that don't
 	 * participate in the upload-store lifecycle.
 	 */
-	async function shareFile(params: { token: string, path: string, index?: string, uploadId?: string, id?: number, referenceId?: string, talkMetaData?: string }) {
-		await performShare(params)
+	async function shareFile({token, path, talkMetaData}: { token: string, path: string, talkMetaData?: string }) {
+		await shareFileApi({ path, shareWith: token, talkMetaData })
 	}
 
 	/**
