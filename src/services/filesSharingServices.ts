@@ -76,11 +76,10 @@ async function createNewFile({ filePath, templatePath, templateType }: createFil
  *         and a rename simulation for the requested file names.
  */
 async function probeAttachmentFolder({ token, fileNames }: ProbeAttachmentFolderParams): Promise<ProbeAttachmentFolderData> {
-	const response = await axios.post<{ ocs: { data: ProbeAttachmentFolderData } }>(
+	return await axios.post<{ ocs: { data: ProbeAttachmentFolderData } }>(
 		generateOcsUrl('apps/spreed/api/v1/chat/{token}/attachment/folder', { token }),
 		{ fileNames },
-	)
-	return response.data.ocs.data
+	).then(response => response.data?.ocs?.data)
 }
 
 /**
