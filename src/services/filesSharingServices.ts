@@ -4,6 +4,9 @@ import type {
 	createFileShareParams,
 	createFileShareResponse,
 	getFileTemplatesListResponse,
+	PostAttachmentParams,
+	ProbeAttachmentFolderData,
+	ProbeAttachmentFolderParams,
 } from '../types/index.ts'
 
 /**
@@ -13,24 +16,6 @@ import type {
 import axios from '@nextcloud/axios'
 import { generateOcsUrl } from '@nextcloud/router'
 import { SHARE } from '../constants.ts'
-
-type PostAttachmentParams = {
-	token: string
-	filePath: string
-	fileName: string
-	referenceId: string
-	talkMetaData: string
-}
-
-type ProbeAttachmentFolderParams = {
-	token: string
-	fileNames: string[]
-}
-
-type ProbeAttachmentFolderData = {
-	folder: string
-	renames: Record<string, string>[]
-}
 
 /**
  * Appends a file as a message to the messages list

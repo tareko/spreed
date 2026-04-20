@@ -185,6 +185,25 @@ export type Conversation = components['schemas']['Room'] & {
 	isDummyConversation?: true
 }
 
+// Attachment folder
+export type PostAttachmentParams = {
+	token: string
+	filePath: string
+	fileName: string
+	referenceId: string
+	talkMetaData: string
+}
+
+export type ProbeAttachmentFolderParams = {
+	token: string
+	fileNames: string[]
+}
+
+export type ProbeAttachmentFolderData = {
+	folder: string
+	renames: Record<string, string>[]
+}
+
 export type getAllConversationsParams = operations['room-get-rooms']['parameters']['query']
 export type getAllConversationsResponse = ApiResponse<operations['room-get-rooms']['responses'][200]['content']['application/json']>
 export type getSingleConversationResponse = ApiResponse<operations['room-get-single-room']['responses'][200]['content']['application/json']>
