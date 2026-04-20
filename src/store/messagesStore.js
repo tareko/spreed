@@ -327,6 +327,25 @@ const mutations = {
 	},
 
 	/**
+	 * Updates the file name shown in a temporary file message.
+	 *
+	 * Used after the probe endpoint returns predicted rename-on-conflict
+	 * names so the user sees the expected final name while the upload is
+	 * in progress.
+	 *
+	 * @param {object} state current store state;
+	 * @param {object} payload payload;
+	 * @param {string} payload.token conversation token;
+	 * @param {object} payload.id message id;
+	 * @param {string} payload.name new file name;
+	 */
+	updateTemporaryMessageFileName(state, { token, id, name }) {
+		if (state.messages[token]?.[id]?.messageParameters?.file) {
+			state.messages[token][id].messageParameters.file.name = name
+		}
+	},
+
+	/**
 	 * @param {object} state current store state;
 	 * @param {object} data the wrapping object;
 	 * @param {string} data.token Token of the conversation
@@ -793,6 +812,19 @@ const actions = {
 	 */
 	markTemporaryMessageAsFailed(context, { token, id, uploadId, reason }) {
 		context.commit('markTemporaryMessageAsFailed', { token, id, uploadId, reason })
+	},
+
+	/**
+	 * Update the displayed file name in a temporary file message.
+	 *
+	 * @param {object} context default store context;
+	 * @param {object} payload payload;
+	 * @param {string} payload.token conversation token;
+	 * @param {object} payload.id message id;
+	 * @param {string} payload.name new file name;
+	 */
+	updateTemporaryMessageFileName(context, { token, id, name }) {
+		context.commit('updateTemporaryMessageFileName', { token, id, name })
 	},
 
 	/**

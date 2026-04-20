@@ -4,9 +4,10 @@ import type {
 	createFileShareParams,
 	createFileShareResponse,
 	getFileTemplatesListResponse,
-	PostAttachmentParams,
-	ProbeAttachmentFolderData,
+	PostAttachmentFolderParams,
+	PostAttachmentFolderResponse,
 	ProbeAttachmentFolderParams,
+	ProbeAttachmentFolderResponse,
 } from '../types/index.ts'
 
 /**
@@ -75,8 +76,8 @@ async function createNewFile({ filePath, templatePath, templateType }: createFil
  * @return Draft folder path (relative to user home root, no leading slash)
  *         and a rename simulation for the requested file names.
  */
-async function probeAttachmentFolder({ token, fileNames }: ProbeAttachmentFolderParams): Promise<ProbeAttachmentFolderData> {
-	return await axios.post<{ ocs: { data: ProbeAttachmentFolderData } }>(
+async function probeAttachmentFolder({ token, fileNames }: { token: string } & ProbeAttachmentFolderParams): Promise<ProbeAttachmentFolderResponse> {
+	return await axios.post<{ ocs: { data: ProbeAttachmentFolderResponse } }>(
 		generateOcsUrl('apps/spreed/api/v1/chat/{token}/attachment/folder', { token }),
 		{ fileNames },
 	).then((response) => response.data?.ocs?.data)
@@ -102,8 +103,8 @@ async function probeAttachmentFolder({ token, fileNames }: ProbeAttachmentFolder
  *         file.  When the backend had to rename due to a conflict the two
  *         names differ; otherwise they are identical.
  */
-async function postAttachment({ token, filePath, fileName, referenceId, talkMetaData }: PostAttachmentParams): Promise<Record<string, string>[]> {
-	const response = await axios.post<{ ocs: { data: { renames: Record<string, string>[] } } }>(
+async function postAttachment({ token, filePath, fileName, referenceId, talkMetaData }: { token: string } & PostAttachmentFolderParams): Promise<PostAttachmentFolderResponse> {
+	return await axios.post<{ ocs: { data: PostAttachmentFolderResponse } }>(
 		generateOcsUrl('apps/spreed/api/v1/chat/{token}/attachment', { token }),
 		{
 			filePath,
@@ -111,8 +112,7 @@ async function postAttachment({ token, filePath, fileName, referenceId, talkMeta
 			referenceId,
 			talkMetaData,
 		},
-	)
-	return response.data?.ocs?.data?.renames ?? []
+	).then((response) => response.data?.ocs?.data)
 }
 
 export {

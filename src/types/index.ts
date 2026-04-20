@@ -185,25 +185,6 @@ export type Conversation = components['schemas']['Room'] & {
 	isDummyConversation?: true
 }
 
-// Attachment folder
-export type PostAttachmentParams = {
-	token: string
-	filePath: string
-	fileName: string
-	referenceId: string
-	talkMetaData: string
-}
-
-export type ProbeAttachmentFolderParams = {
-	token: string
-	fileNames: string[]
-}
-
-export type ProbeAttachmentFolderData = {
-	folder: string
-	renames: Record<string, string>[]
-}
-
 export type getAllConversationsParams = operations['room-get-rooms']['parameters']['query']
 export type getAllConversationsResponse = ApiResponse<operations['room-get-rooms']['responses'][200]['content']['application/json']>
 export type getSingleConversationResponse = ApiResponse<operations['room-get-single-room']['responses'][200]['content']['application/json']>
@@ -677,3 +658,11 @@ export type liveTranscriptionGetAvailableLanguagesResponse = ApiResponse<operati
 export type liveTranscriptionGetAvailableTranslationLanguagesResponse = ApiResponse<operations['live_transcription-get-available-translation-languages']['responses'][200]['content']['application/json']>
 export type liveTranscriptionSetLanguageResponse = ApiResponse<operations['live_transcription-set-language']['responses'][200]['content']['application/json']>
 export type liveTranscriptionSetTargetLanguageResponse = ApiResponse<operations['live_transcription-set-target-language']['responses'][200]['content']['application/json']>
+
+// Attachment post folder
+
+export type PostAttachmentFolderParams = Required<operations['chat-post-attachment-to-room']>['requestBody']['content']['application/json']
+export type PostAttachmentFolderResponse = ApiResponse<operations['chat-post-attachment-to-room']['responses'][200]['content']['application/json']>
+
+export type ProbeAttachmentFolderParams = Required<operations['chat-probe-attachment-folder']>['requestBody']['content']['application/json']
+export type ProbeAttachmentFolderResponse = operations['chat-probe-attachment-folder']['responses'][200]['content']['application/json']['ocs']['data']

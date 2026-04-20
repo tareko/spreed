@@ -57,17 +57,17 @@ type UploadFilesPayload = {
 	options: Pick<ChatMessage, | 'threadId' | 'threadTitle' | 'silent' | 'parent'> | null
 }
 
-type PerformSharePayload = { 
-	token: string, 
-	path: string, 
-	index?: string, 
-	uploadId?: string, 
-	id?: number, 
-	referenceId?: string, 
-	talkMetaData?: string, 
-	fileName?: string 
+type PerformSharePayload = {
+	token: string
+	path: string
+	index?: string
+	uploadId?: string
+	id?: number
+	referenceId?: string
+	talkMetaData?: string
+	fileName?: string
 }
-	
+
 export const useUploadStore = defineStore('upload', () => {
 	const actorStore = useActorStore()
 	const chatExtrasStore = useChatExtrasStore()
@@ -397,11 +397,27 @@ export const useUploadStore = defineStore('upload', () => {
 			&& [CONVERSATION.TYPE.GROUP, CONVERSATION.TYPE.PUBLIC].includes(conversation.type)
 			&& getTalkConfig(token, 'attachments', 'conversation-subfolders') === true
 		if (useConversationFolder) {
-			const fileNames = getInitialisedUploads(uploadId)
+			const initialisedUploads = getInitialisedUploads(uploadId)
+			const fileNames = initialisedUploads
 				.map(([, uploadedFile]) => uploadedFile.file.newName || uploadedFile.file.name)
 			try {
 				const probe = await probeAttachmentFolder({ token, fileNames })
 				uploads[uploadId].draftFolderPath = probe.folder
+
+				// Update temporary messages with predicted rename-on-conflict
+				// names so the user sees the expected final name while uploading.
+				for (const [i, [, uploadedFile]] of initialisedUploads.entries()) {
+					const renameEntry = probe.renames[i]
+					if (!renameEntry) {
+						continue
+					}
+					const originalName = fileNames[i]
+					const predictedName = renameEntry[originalName]
+					if (predictedName && predictedName !== originalName) {
+						const { id } = uploadedFile.temporaryMessage
+						vuexStore.dispatch('updateTemporaryMessageFileName', { token, id, name: predictedName })
+					}
+				}
 			} catch (error) {
 				console.error('Error while creating conversation attachment folder, falling back to flat upload: ', error)
 			}
@@ -607,7 +623,7 @@ export const useUploadStore = defineStore('upload', () => {
 				throw new Error('Missing uploadId or index for sharing file')
 			}
 			markFileAsSharing({ uploadId, index })
-			
+
 			const draftFolderPath = uploadId ? uploads[uploadId]?.draftFolderPath : undefined
 			if (draftFolderPath && fileName) {
 				// Draft-folder flow: post via the Talk attachment endpoint
@@ -639,8 +655,13 @@ export const useUploadStore = defineStore('upload', () => {
 	 * Public wrapper — shares a file via the classic files_sharing API.
 	 * Used by external callers (NewMessage, NewFileDialog) that don't
 	 * participate in the upload-store lifecycle.
+	 *
+	 * @param payload
+	 * @param payload.token The conversation token
+	 * @param payload.path The file path (relative to user root)
+	 * @param payload.talkMetaData The metadata JSON-encoded object to attach to the share
 	 */
-	async function shareFile({token, path, talkMetaData}: { token: string, path: string, talkMetaData?: string }) {
+	async function shareFile({ token, path, talkMetaData }: { token: string, path: string, talkMetaData?: string }) {
 		await shareFileApi({ path, shareWith: token, talkMetaData })
 	}
 

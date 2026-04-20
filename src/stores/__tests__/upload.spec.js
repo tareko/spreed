@@ -457,6 +457,33 @@ describe('fileUploadStore', () => {
 				expect(postAttachment).toHaveBeenCalledWith(expect.objectContaining({ fileName: 'doc.pdf' }))
 			})
 
+			test('updates temporary message file names when probe predicts renames', async () => {
+				conversationGetter.mockReturnValue({ type: 2, displayName: 'Room' })
+				probeAttachmentFolder.mockResolvedValue({
+					folder: DRAFT_PATH,
+					renames: [
+						{ 'photo.jpg': 'photo (1).jpg' },
+						{ 'doc.pdf': 'doc.pdf' },
+					],
+				})
+
+				const file1 = { name: 'photo.jpg', type: 'image/jpeg', size: 100, lastModified: 0 }
+				const file2 = { name: 'doc.pdf', type: 'application/pdf', size: 200, lastModified: 0 }
+
+				uploadStore.initialiseUpload({ uploadId: 'upload-id1', token: TOKEN, files: [file1, file2] })
+
+				await uploadStore.uploadFiles({ token: TOKEN, uploadId: 'upload-id1', options: null })
+
+				// Only the renamed file should trigger a dispatch
+				const updateCalls = vuexStoreDispatch.mock.calls
+					.filter(([action]) => action === 'updateTemporaryMessageFileName')
+				expect(updateCalls).toHaveLength(1)
+				expect(updateCalls[0][1]).toMatchObject({
+					token: TOKEN,
+					name: 'photo (1).jpg',
+				})
+			})
+
 			test('falls back to shareFile when the probe endpoint fails', async () => {
 				conversationGetter.mockReturnValue({ type: 2, displayName: 'My Room' })
 				probeAttachmentFolder.mockRejectedValueOnce(new Error('boom'))
