@@ -497,6 +497,7 @@ async function signalingLeaveConversation(token) {
 function signalingKill() {
 	if (signaling) {
 		signaling.disconnect()
+		signaling = null
 	}
 }
 
